@@ -1,0 +1,134 @@
+version: "3.1"
+
+nlu:
+- intent: add_activity
+  examples: |
+    - add a visit to the [Eiffel Tower](poi) on [day 2](day)
+    - include [Louvre Museum](poi) in the itinerary for [day 1](day)
+    - add [lunch at a local cafe](poi) on [day 3](day) [afternoon](time_slot)
+    - can you add [Seine River cruise](poi) to [day 2](day) [evening](time_slot)
+    - please include [Notre Dame](poi) on [day 1](day)
+    - add [shopping at Champs Elysees](poi) for [2 hours](duration)
+    - insert [coffee break](poi) at [3pm](time_slot)
+    - put [Arc de Triomphe](poi) on [day 2](day) [morning](time_slot)
+    - schedule [Versailles tour](poi) on [day 4](day)
+    - add a [food tour](poi) in the [evening](time_slot)
+
+- intent: remove_activity
+  examples: |
+    - remove [Louvre Museum](poi) from [day 1](day)
+    - delete the [afternoon](time_slot) activity on [day 2](day)
+    - take out [Eiffel Tower](poi) from the itinerary
+    - cancel the [morning](time_slot) tour on [day 3](day)
+    - skip [Notre Dame](poi)
+    - remove activity [act_123](activity_id)
+    - delete the [lunch](time_slot) plan for [day 2](day)
+    - take out the [shopping](poi) activity
+    - cancel [Arc de Triomphe](poi) visit
+    - remove [day 3](day) [evening](time_slot) activity
+
+- intent: move_activity
+  examples: |
+    - move [Eiffel Tower](poi) from [day 1](day) to [day 2](day)
+    - shift the [morning](time_slot) activity to [afternoon](time_slot)
+    - reschedule [Louvre Museum](poi) to [day 3](day)
+    - move activity [act_123](activity_id) to [day 2](day) [evening](time_slot)
+    - change [Notre Dame](poi) from [day 2](day) to [day 1](day)
+    - shift [lunch](time_slot) to [2pm](time_slot)
+    - move the [afternoon](time_slot) tour to [morning](time_slot)
+    - reschedule [day 1](day) activities to [day 2](day)
+
+- intent: change_time
+  examples: |
+    - change [Eiffel Tower](poi) time to [3pm](time_slot)
+    - make the [morning](time_slot) activity start at [10am](time_slot)
+    - shift [lunch](time_slot) to [1:30pm](time_slot)
+    - update [day 2](day) [afternoon](time_slot) to [4pm](time_slot)
+    - change timing for [Louvre visit](poi) to [9am](time_slot)
+    - move [dinner](time_slot) to [7pm](time_slot)
+    - start [day 1](day) at [8am](time_slot)
+    - change activity [act_123](activity_id) to [2pm](time_slot)
+
+- intent: change_hotel
+  examples: |
+    - change hotel to [Hotel Ritz](hotel_name)
+    - update accommodation to [Airbnb near Louvre](hotel_name)
+    - switch to [Hilton Paris](hotel_name)
+    - book [Marriott](hotel_name) instead
+    - change hotel for [day 2](day) to [Grand Hotel](hotel_name)
+    - update to [Four Seasons](hotel_name)
+    - move to [Budget Inn](hotel_name)
+
+- intent: change_transport
+  examples: |
+    - change transport to [taxi](transport_mode)
+    - use [metro](transport_mode) instead
+    - switch to [walking](transport_mode)
+    - take [uber](transport_mode) instead
+    - change [day 2](day) transport to [bus](transport_mode)
+    - use [train](transport_mode) for travel
+    - switch from car to [bicycle](transport_mode)
+
+- intent: update_cost
+  examples: |
+    - update budget to [$2000](amount)
+    - increase budget by [$500](amount)
+    - reduce cost to [$1500](amount)
+    - set budget at [$3000](amount)
+    - add [$200](amount) to budget
+    - decrease budget by [$300](amount)
+    - change total cost to [$2500](amount)
+
+- intent: combine_days
+  examples: |
+    - combine [day 1](day) and [day 2](day)
+    - merge activities from [day 2](day) into [day 1](day)
+    - consolidate [day 3](day) and [day 4](day)
+    - put [day 2](day) activities into [day 1](day)
+
+- intent: split_day
+  examples: |
+    - split [day 1](day) into two days
+    - divide [day 2](day) activities
+    - break [day 3](day) into [morning](time_slot) and [afternoon](time_slot)
+    - separate [day 1](day) into multiple days
+
+- intent: confirm
+  examples: |
+    - yes
+    - confirm
+    - ok
+    - sure
+    - go ahead
+    - proceed
+    - that's right
+    - correct
+    - looks good
+    - yes please
+    - yep
+    - yeah
+
+- intent: cancel
+  examples: |
+    - no
+    - cancel
+    - stop
+    - nevermind
+    - forget it
+    - don't do that
+    - no thanks
+    - nope
+    - not now
+    - abort
+
+- intent: clarify
+  examples: |
+    - what do you mean
+    - can you explain
+    - I don't understand
+    - clarify please
+    - what are the options
+    - show me suggestions
+    - help me decide
+    - what can I change
+    - tell me more

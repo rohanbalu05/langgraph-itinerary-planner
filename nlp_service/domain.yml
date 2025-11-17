@@ -1,0 +1,38 @@
+version: "3.1"
+
+intents:
+  - add_activity
+  - remove_activity
+  - move_activity
+  - change_time
+  - change_hotel
+  - change_transport
+  - update_cost
+  - combine_days
+  - split_day
+  - confirm
+  - cancel
+  - clarify
+
+entities:
+  - poi
+  - day
+  - time_slot
+  - duration
+  - activity_id
+  - hotel_name
+  - transport_mode
+  - amount
+
+responses:
+  utter_confirm:
+    - text: "I'll make that change for you."
+
+  utter_clarify:
+    - text: "I need more information. Can you be more specific?"
+
+  utter_error:
+    - text: "Sorry, I couldn't process that request."
+
+actions:
+  - action_parse_intent

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  nlp_service:
+    build:
+      context: ./nlp_service
+      dockerfile: Dockerfile
+    container_name: nlp_service
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./nlp_service:/app
+    restart: unless-stopped
+    networks:
+      - itinerary_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: backend_api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_SUPABASE_ANON_KEY=${VITE_SUPABASE_SUPABASE_ANON_KEY}
+    volumes:
+      - ./backend:/app/backend
+    depends_on:
+      - nlp_service
+    restart: unless-stopped
+    networks:
+      - itinerary_network
+
+networks:
+  itinerary_network:
+    driver: bridge
