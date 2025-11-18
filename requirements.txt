@@ -1,0 +1,44 @@
+# Core Dependencies
+python-dotenv==1.0.0
+
+# API Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+httpx==0.26.0
+
+# Database
+supabase==2.3.4
+
+# AI/ML Models
+torch==2.8.0
+transformers==4.56.1
+accelerate==1.10.1
+sentencepiece==0.2.1
+hf-transfer==0.1.9
+
+# LangChain & LangGraph
+langgraph==0.6.6
+langchain-huggingface==0.3.1
+langchain-openai==0.3.32
+
+# NLP & Rasa
+rasa==3.6.0
+rasa-sdk==3.6.0
+rapidfuzz==3.6.1
+
+# Search & Web
+tavily-python==0.7.11
+ddgs==9.5.5
+
+# UI
+streamlit==1.49.1
+
+# HTTP Requests
+requests==2.31.0
+
+# Testing
+pytest==7.4.0
+
+# Legacy dotenv (for compatibility)
+dotenv==0.9.9

@@ -1,0 +1,36 @@
+# Include documentation
+include README.md
+include README_CHAT_FEATURE.md
+include LICENSE
+include QUICK_REFERENCE.md
+include STEP_BY_STEP_GUIDE.md
+include IMPLEMENTATION_SUMMARY.md
+include DELIVERY_REPORT.md
+include DOCUMENTATION_INDEX.md
+
+# Include configuration files
+include pyproject.toml
+include setup.py
+include setup.cfg
+include requirements.txt
+include requirements-minimal.txt
+include .env.example
+include docker-compose.yml
+
+# Include NLP service files
+recursive-include nlp_service *.yml *.yaml *.py *.txt
+
+# Include backend files
+recursive-include backend *.py *.txt
+
+# Include test files
+recursive-include tests *.py *.ini
+
+# Include documentation
+recursive-include docs *.md
+
+# Exclude unnecessary files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.log
