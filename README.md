@@ -59,10 +59,12 @@ streamlit run app_with_chat.py
 
 ## 📋 Requirements
 
-- **Python**: 3.12 or higher
+- **Python**: 3.12, 3.13, or higher ✅
 - **Disk Space**: ~5 GB (for ML models)
 - **RAM**: 4 GB minimum, 8 GB recommended
 - **OS**: Windows, macOS, or Linux
+
+> **✅ Python 3.13 Fully Supported!** All dependency conflicts resolved. See [INSTALL_PYTHON_3.13.md](INSTALL_PYTHON_3.13.md) for quick setup.
 
 **Optional:**
 - Docker & Docker Compose (for containerized deployment)

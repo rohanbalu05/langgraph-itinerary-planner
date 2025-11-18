@@ -1,20 +1,26 @@
 # Minimal Requirements (for basic functionality without NLP service)
 # Use this if you want to run just the Streamlit app without conversational editing
+# Compatible with Python 3.13+
 
-python-dotenv==1.0.0
-streamlit==1.49.1
-requests==2.31.0
+python-dotenv>=1.0.0
+streamlit>=1.40.0
+requests>=2.32.0
 
 # AI/ML for itinerary generation
-torch==2.8.0
-transformers==4.56.1
-accelerate==1.10.1
-sentencepiece==0.2.1
+torch>=2.5.0
+transformers>=4.46.0
+accelerate>=1.1.0
+sentencepiece>=0.2.0
 
 # LangChain & LangGraph
-langgraph==0.6.6
-langchain-huggingface==0.3.1
+langgraph>=0.2.0
+langchain-huggingface>=0.1.0
+langchain-core>=0.3.0
+langchain>=0.3.0
 
 # Search
-tavily-python==0.7.11
-ddgs==9.5.5
+tavily-python>=0.5.0
+duckduckgo-search>=6.0.0
+
+# Database
+supabase>=2.10.0

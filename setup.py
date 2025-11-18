@@ -36,7 +36,7 @@ setup(
     },
 
     # Python version requirement
-    python_requires='>=3.12',
+    python_requires='>=3.12,<4.0',
 
     # Dependencies
     install_requires=read_requirements('requirements.txt'),
@@ -44,11 +44,11 @@ setup(
     # Optional dependencies
     extras_require={
         'dev': [
-            'pytest>=7.4.0',
-            'pytest-cov>=4.1.0',
-            'black>=23.0.0',
-            'flake8>=6.0.0',
-            'mypy>=1.5.0',
+            'pytest>=8.3.0',
+            'pytest-cov>=6.0.0',
+            'black>=24.0.0',
+            'flake8>=7.0.0',
+            'mypy>=1.13.0',
         ],
         'minimal': read_requirements('requirements-minimal.txt'),
     },
@@ -69,6 +69,7 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Operating System :: OS Independent',
     ],
 

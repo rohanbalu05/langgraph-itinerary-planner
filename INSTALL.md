@@ -2,6 +2,9 @@
 
 Complete guide to installing and setting up the LangGraph Travel Itinerary Planner.
 
+> **✅ Python 3.13+ Now Fully Supported!**
+> All dependency issues have been resolved. See [INSTALL_PYTHON_3.13.md](INSTALL_PYTHON_3.13.md) for quick setup or [PYTHON_3.13_COMPATIBILITY_FIX.md](PYTHON_3.13_COMPATIBILITY_FIX.md) for details.
+
 ---
 
 ## 📋 Prerequisites
