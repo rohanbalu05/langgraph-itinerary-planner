@@ -1,5 +1,13 @@
 import streamlit as st
-from workflow import app
+
+# Try to import regular workflow, fallback to simplified
+try:
+    from workflow import app
+    print("✅ Using LangGraph workflow")
+except (ImportError, ModuleNotFoundError):
+    from workflow_simple import app
+    print("✅ Using simplified workflow (LangGraph not available)")
+
 from helper_func import clean_itinerary, clean_weather
 from chat_widget import ChatWidget
 from supabase_helpers import save_itinerary, is_supabase_configured

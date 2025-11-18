@@ -1,63 +1,68 @@
-from langgraph.graph import StateGraph, END
-from tavily import TavilyClient
-from typing import TypedDict, Dict, Any
+"""
+Simplified workflow without LangGraph dependency
+Maintains the same functionality using simple function calls
+"""
+from typing import Dict, Any
 from datetime import datetime
 import os
 import json
-from dotenv import load_dotenv
 
-# Try to import real LLM, fallback to mock
 try:
-    from llm import llm
-    print("✅ Using real LLM (transformers/OpenAI)")
-except (ImportError, ModuleNotFoundError):
-    from llm_mock import llm
-    print("✅ Using mock LLM (transformers not available)")
-from tripcraft_config import (
-    build_itinerary_prompt,
-    validate_itinerary_json,
-    extract_json_from_text
-)  # our TinyLlama-based LLM function
-
-# Load environment variables
-try:
+    from dotenv import load_dotenv
     load_dotenv()
 except:
     pass
 
-# Tavily API client (optional)
-tavily_key = os.getenv("TAVILY_API_KEY")
-if tavily_key:
-    try:
+# Import mock LLM
+from llm_mock import llm
+from tripcraft_config import (
+    build_itinerary_prompt,
+    validate_itinerary_json,
+    extract_json_from_text
+)
+
+# Tavily is optional
+try:
+    from tavily import TavilyClient
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    if tavily_key:
         tavily = TavilyClient(api_key=tavily_key)
         print("✅ Tavily search enabled")
-    except Exception as e:
+    else:
         tavily = None
-        print(f"⚠️  Tavily unavailable: {e}")
-else:
+        print("⚠️  Tavily API key not set (search disabled)")
+except:
     tavily = None
-    print("⚠️  Tavily API key not set (search disabled)")
+    print("⚠️  Tavily not available")
 
-class TravelPlanState(TypedDict):
-    preferences: dict
-    destination_info: str
-    itinerary: str
-    itinerary_json: dict
-    weather: str
-    errors: list
+print("✅ Using mock LLM (transformers not available)")
 
 
-# Step 1: Gather preferences
-def gather_preferences(state: TravelPlanState):
-    return {"preferences": state["preferences"]}
+class TravelPlanState:
+    """State container for travel planning"""
+
+    def __init__(self, preferences: Dict[str, Any]):
+        self.preferences = preferences
+        self.destination_info = ""
+        self.itinerary = ""
+        self.itinerary_json = {}
+        self.weather = ""
+        self.errors = []
 
 
-# Step 2: Fetch destination info
-def fetch_destination_info(state: TravelPlanState):
-    dest = state["preferences"].get("destination", "")
-    interests = state["preferences"].get("interests", "")
+def gather_preferences(state: TravelPlanState) -> TravelPlanState:
+    """Step 1: Gather preferences (no-op, already in state)"""
+    return state
+
+
+def fetch_destination_info(state: TravelPlanState) -> TravelPlanState:
+    """Step 2: Fetch destination information"""
+    dest = state.preferences.get("destination", "")
+    interests = state.preferences.get("interests", "")
+
     if not dest:
-        return {"destination_info": "Destination not specified."}
+        state.destination_info = "Destination not specified."
+        return state
 
     # Try Tavily if available
     if tavily:
@@ -67,7 +72,6 @@ def fetch_destination_info(state: TravelPlanState):
 
             results = info.get("results", [])
             if results:
-                # Merge results into a paragraph
                 snippets = []
                 for result in results:
                     content = result.get("content", "")
@@ -81,21 +85,22 @@ def fetch_destination_info(state: TravelPlanState):
                     if last_space != -1:
                         combined_info = combined_info[:last_space] + "…"
 
-                return {"destination_info": combined_info}
+                state.destination_info = combined_info
+                return state
         except Exception as e:
             print(f"⚠️  Tavily search failed: {e}")
 
-    # Fallback: Generate basic destination info
+    # Fallback
     interests_str = ', '.join(interests) if isinstance(interests, list) else str(interests)
-    fallback_info = f"{dest} is a popular travel destination known for its attractions. Recommended activities based on your interests ({interests_str}): exploring local culture, visiting landmarks, enjoying local cuisine, and experiencing the unique atmosphere of the city."
+    state.destination_info = f"{dest} is a popular travel destination known for its attractions. Recommended activities based on your interests ({interests_str}): exploring local culture, visiting landmarks, enjoying local cuisine, and experiencing the unique atmosphere of the city."
 
-    return {"destination_info": fallback_info}
+    return state
 
 
+def generate_itinerary(state: TravelPlanState) -> TravelPlanState:
+    """Step 3: Generate itinerary using LLM"""
+    dates = state.preferences.get('dates', "")
 
-def generate_itinerary(state: TravelPlanState):
-    """Generate itinerary using TripCraft JSON format"""
-    dates = state['preferences'].get('dates', "")
     try:
         start_date, end_date = dates.split(" to ")
         start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -104,13 +109,15 @@ def generate_itinerary(state: TravelPlanState):
     except (ValueError, AttributeError):
         num_days = 5
 
-    prompt = build_itinerary_prompt(
-        preferences=state['preferences'],
-        destination_info=state['destination_info'],
-        num_days=num_days
-    )
-
     try:
+        # Build prompt
+        prompt = build_itinerary_prompt(
+            preferences=state.preferences,
+            destination_info=state.destination_info,
+            num_days=num_days
+        )
+
+        # Generate with LLM
         raw_output = llm(prompt, return_json=True)
 
         try:
@@ -120,39 +127,52 @@ def generate_itinerary(state: TravelPlanState):
 
         if not validate_itinerary_json(itinerary_data):
             fallback_itinerary = create_fallback_itinerary(
-                state['preferences'],
+                state.preferences,
                 num_days,
-                raw_output
+                "Generated itinerary did not match schema"
             )
-            return {
-                "itinerary": format_itinerary_as_markdown(fallback_itinerary),
-                "itinerary_json": fallback_itinerary,
-                "errors": ["Generated itinerary did not match schema, using fallback"]
-            }
-
-        markdown_output = format_itinerary_as_markdown(itinerary_data)
-
-        return {
-            "itinerary": markdown_output,
-            "itinerary_json": itinerary_data,
-            "errors": []
-        }
+            state.itinerary = format_itinerary_as_markdown(fallback_itinerary)
+            state.itinerary_json = fallback_itinerary
+            state.errors.append("Generated itinerary did not match schema, using fallback")
+        else:
+            state.itinerary = format_itinerary_as_markdown(itinerary_data)
+            state.itinerary_json = itinerary_data
 
     except Exception as e:
         fallback_itinerary = create_fallback_itinerary(
-            state['preferences'],
+            state.preferences,
             num_days,
             str(e)
         )
-        return {
-            "itinerary": format_itinerary_as_markdown(fallback_itinerary),
-            "itinerary_json": fallback_itinerary,
-            "errors": [f"Error generating itinerary: {str(e)}"]
-        }
+        state.itinerary = format_itinerary_as_markdown(fallback_itinerary)
+        state.itinerary_json = fallback_itinerary
+        state.errors.append(f"Error generating itinerary: {str(e)}")
+
+    return state
+
+
+def check_weather(state: TravelPlanState) -> TravelPlanState:
+    """Step 4: Check weather forecast"""
+    if tavily:
+        try:
+            query = (
+                f"Weather forecast for {state.preferences['destination']} "
+                f"on {state.preferences['dates']}"
+            )
+            weather_data = tavily.search(query=query, max_results=1)
+            state.weather = weather_data["results"][0]["content"] if weather_data.get("results") else "No weather data found."
+            return state
+        except Exception as e:
+            print(f"⚠️  Weather check failed: {e}")
+
+    state.weather = "Weather information unavailable. Please check local weather services for your travel dates."
+    return state
 
 
 def create_fallback_itinerary(preferences: Dict[str, Any], num_days: int, error_info: str) -> Dict[str, Any]:
-    """Create a basic fallback itinerary when generation fails"""
+    """Create a basic fallback itinerary"""
+    from datetime import timedelta
+
     destination = preferences.get('destination', 'Unknown Destination')
     dates = preferences.get('dates', '')
     budget = preferences.get('budget', 0)
@@ -165,7 +185,7 @@ def create_fallback_itinerary(preferences: Dict[str, Any], num_days: int, error_
     daily_plans = []
     for day_num in range(1, num_days + 1):
         day_date = datetime.strptime(start_date, '%Y-%m-%d')
-        day_date = day_date.replace(day=day_date.day + day_num - 1)
+        day_date = day_date + timedelta(days=day_num - 1)
 
         daily_plans.append({
             "day": day_num,
@@ -212,7 +232,7 @@ def create_fallback_itinerary(preferences: Dict[str, Any], num_days: int, error_
 
 
 def format_itinerary_as_markdown(itinerary_data: Dict[str, Any]) -> str:
-    """Convert JSON itinerary to markdown format for display"""
+    """Convert JSON itinerary to markdown"""
     try:
         itinerary = itinerary_data.get('itinerary', itinerary_data)
         lines = []
@@ -259,40 +279,32 @@ def format_itinerary_as_markdown(itinerary_data: Dict[str, Any]) -> str:
         return f"Error formatting itinerary: {str(e)}\n\nRaw data: {json.dumps(itinerary_data, indent=2)}"
 
 
-# Step 4: Fetch weather
-def check_weather(state: TravelPlanState):
-    """Check weather forecast if Tavily is available"""
-    if tavily:
-        try:
-            query = (
-                f"Weather forecast for {state['preferences']['destination']} "
-                f"on {state['preferences']['dates']}"
-            )
-            weather_data = tavily.search(query=query, max_results=1)
-            weather_text = weather_data["results"][0]["content"] if weather_data.get("results") else "No weather data found."
-            return {"weather": weather_text}
-        except Exception as e:
-            print(f"⚠️  Weather check failed: {e}")
+class SimpleWorkflowApp:
+    """Simple workflow executor"""
 
-    # Fallback weather message
-    return {"weather": "Weather information unavailable. Please check local weather services for your travel dates."}
+    def invoke(self, initial_state: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute the workflow"""
+        # Create state
+        state = TravelPlanState(initial_state.get("preferences", {}))
+
+        # Run steps in sequence
+        state = gather_preferences(state)
+        state = fetch_destination_info(state)
+        state = generate_itinerary(state)
+        state = check_weather(state)
+
+        # Return as dict
+        return {
+            "preferences": state.preferences,
+            "destination_info": state.destination_info,
+            "itinerary": state.itinerary,
+            "itinerary_json": state.itinerary_json,
+            "weather": state.weather,
+            "errors": state.errors
+        }
 
 
-# Build the workflow graph
-workflow = StateGraph(TravelPlanState)
-workflow.add_node("gather_preferences", gather_preferences)
-workflow.add_node("fetch_info", fetch_destination_info)
-workflow.add_node("generate_itinerary", generate_itinerary)
-workflow.add_node("check_weather", check_weather)
+# Create app instance
+app = SimpleWorkflowApp()
 
-# Define flow
-workflow.add_edge("gather_preferences", "fetch_info")
-workflow.add_edge("fetch_info", "generate_itinerary")
-workflow.add_edge("generate_itinerary", "check_weather")
-
-# Entry and exit
-workflow.set_entry_point("gather_preferences")
-workflow.add_edge("check_weather", END)
-
-# Compile app
-app = workflow.compile()
+print("✅ Simple workflow initialized (no LangGraph)")

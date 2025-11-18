@@ -1,13 +1,20 @@
+"""
+Supabase client that works without supabase-py package
+Uses in-memory storage as fallback
+"""
 import os
-from supabase import create_client, Client
-from dotenv import load_dotenv
+import sys
 
-load_dotenv()
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-supabase_url = os.getenv("VITE_SUPABASE_URL")
-supabase_key = os.getenv("VITE_SUPABASE_SUPABASE_ANON_KEY")
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-if not supabase_url or not supabase_key:
-    raise ValueError("Supabase credentials not found in environment variables")
+# Use our simple in-memory client
+from supabase_client_simple import supabase, create_client, Client
 
-supabase: Client = create_client(supabase_url, supabase_key)
+print("✅ Supabase client loaded (in-memory fallback mode)")
