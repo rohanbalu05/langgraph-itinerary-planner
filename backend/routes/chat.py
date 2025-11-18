@@ -3,13 +3,16 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import httpx
 import uuid
+import os
 from datetime import datetime
 import json
 from backend.supabase_client import supabase
+from tripcraft_config import build_edit_prompt, extract_json_from_text
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 NLP_SERVICE_URL = "http://localhost:8001"
+USE_OPENAI_FALLBACK = os.getenv("OPENAI_API_KEY") is not None
 
 
 class ChatMessageRequest(BaseModel):
@@ -64,23 +67,40 @@ async def process_chat_message(
 
         itinerary = response.data
 
-        async with httpx.AsyncClient() as client:
-            nlp_response = await client.post(
-                f"{NLP_SERVICE_URL}/parse",
-                json={
-                    "message": request.message,
-                    "context": {"itinerary": itinerary}
-                },
-                timeout=30.0
-            )
+        parsed = None
+        fallback_used = False
 
-            if nlp_response.status_code != 200:
-                raise HTTPException(
-                    status_code=500,
-                    detail="NLP service error"
+        try:
+            async with httpx.AsyncClient() as client:
+                nlp_response = await client.post(
+                    f"{NLP_SERVICE_URL}/parse",
+                    json={
+                        "message": request.message,
+                        "context": {"itinerary": itinerary}
+                    },
+                    timeout=4.0
                 )
 
-            parsed = nlp_response.json()
+                if nlp_response.status_code == 200:
+                    parsed = nlp_response.json()
+        except (httpx.RequestError, httpx.TimeoutException):
+            if USE_OPENAI_FALLBACK:
+                fallback_used = True
+                parsed = await parse_with_openai_fallback(
+                    request.message,
+                    itinerary.get('content', {})
+                )
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail="NLP service unavailable and no fallback configured"
+                )
+
+        if not parsed:
+            raise HTTPException(
+                status_code=500,
+                detail="Could not parse message"
+            )
 
         confidence = parsed.get("confidence", 0.0)
         intent = parsed.get("intent")
@@ -143,11 +163,8 @@ async def process_chat_message(
             session_id=session_id
         )
 
-    except httpx.RequestError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Could not connect to NLP service: {str(e)}"
-        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -326,10 +343,14 @@ def _apply_edit_command(itinerary: Dict, command: Dict) -> Dict:
 
 
 def _compute_diff(before: Dict, after: Dict) -> Dict:
+    """Compute delta changes between two itinerary versions"""
     diff = {
         "added": [],
         "removed": [],
-        "modified": []
+        "modified": [],
+        "delta": {
+            "changes": []
+        }
     }
 
     before_keys = set(before.keys())
@@ -337,9 +358,23 @@ def _compute_diff(before: Dict, after: Dict) -> Dict:
 
     for key in after_keys - before_keys:
         diff["added"].append({"key": key, "value": after[key]})
+        diff["delta"]["changes"].append({
+            "type": "add",
+            "target": key,
+            "before": None,
+            "after": after[key],
+            "reason": f"Added new field: {key}"
+        })
 
     for key in before_keys - after_keys:
         diff["removed"].append({"key": key, "value": before[key]})
+        diff["delta"]["changes"].append({
+            "type": "remove",
+            "target": key,
+            "before": before[key],
+            "after": None,
+            "reason": f"Removed field: {key}"
+        })
 
     for key in before_keys & after_keys:
         if before[key] != after[key]:
@@ -348,5 +383,49 @@ def _compute_diff(before: Dict, after: Dict) -> Dict:
                 "before": before[key],
                 "after": after[key]
             })
+            diff["delta"]["changes"].append({
+                "type": "modify",
+                "target": key,
+                "before": before[key],
+                "after": after[key],
+                "reason": f"Modified field: {key}"
+            })
 
     return diff
+
+
+async def parse_with_openai_fallback(message: str, itinerary: Dict[str, Any]) -> Dict[str, Any]:
+    """Use OpenAI as fallback for NLP parsing"""
+    try:
+        import openai
+
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+
+        prompt = build_edit_prompt(message, itinerary)
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are TripCraft's NLP parser. Parse user edit requests and return structured JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=500
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        parsed_data = extract_json_from_text(result_text)
+
+        return parsed_data
+
+    except ImportError:
+        raise Exception("OpenAI package not installed. Run: pip install openai")
+    except Exception as e:
+        return {
+            "intent": "unknown",
+            "entities": {},
+            "edit_command": {"action": "unknown"},
+            "confidence": 0.2,
+            "human_preview": f"Could not parse: {message}",
+            "error": str(e)
+        }

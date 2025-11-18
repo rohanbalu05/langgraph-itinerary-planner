@@ -67,6 +67,9 @@ class ChatWidget:
                     if message.get("suggestions"):
                         self._render_suggestions(message["suggestions"], message.get("needs_confirmation"))
 
+                    if message.get("delta"):
+                        self._render_delta(message["delta"])
+
     def _render_suggestions(self, suggestions: List[Dict], needs_confirmation: bool):
         for i, suggestion in enumerate(suggestions[:3]):
             confidence = suggestion.get("confidence", 0)
@@ -233,3 +236,36 @@ class ChatWidget:
             return "🟡"
         else:
             return "🔴"
+
+    def _render_delta(self, delta: Dict):
+        """Render delta changes from edits"""
+        changes = delta.get("changes", [])
+        if not changes:
+            return
+
+        with st.expander("📊 View Changes", expanded=False):
+            for change in changes:
+                change_type = change.get("type", "unknown")
+                target = change.get("target", "")
+                reason = change.get("reason", "")
+
+                if change_type == "add":
+                    st.success(f"➕ Added: {target}")
+                elif change_type == "remove":
+                    st.error(f"➖ Removed: {target}")
+                elif change_type == "modify":
+                    st.info(f"✏️ Modified: {target}")
+                elif change_type == "move":
+                    st.warning(f"🔀 Moved: {target}")
+
+                if reason:
+                    st.caption(reason)
+
+                if change.get("before") and change.get("after"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.text("Before:")
+                        st.json(change["before"], expanded=False)
+                    with col2:
+                        st.text("After:")
+                        st.json(change["after"], expanded=False)

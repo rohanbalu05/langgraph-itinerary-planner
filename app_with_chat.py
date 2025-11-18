@@ -2,7 +2,9 @@ import streamlit as st
 from workflow import app
 from helper_func import clean_itinerary, clean_weather
 from chat_widget import ChatWidget
+from supabase_helpers import save_itinerary, is_supabase_configured
 import uuid
+import json
 
 
 st.set_page_config(page_title="Travel Planner AI", page_icon="🌍", layout="wide")
@@ -34,22 +36,40 @@ if submitted:
             result = app.invoke({"preferences": preferences})
             itinerary = clean_itinerary(result.get("itinerary", "No itinerary generated."))
             weather = clean_weather(result.get("weather", "No weather data available."))
+            itinerary_json = result.get("itinerary_json", {})
+            errors = result.get("errors", [])
 
             if "itinerary_id" not in st.session_state:
                 st.session_state.itinerary_id = str(uuid.uuid4())
 
-            st.subheader("📅 Itinerary")
+            if itinerary_json and is_supabase_configured():
+                saved_id = save_itinerary(itinerary_json, user_id=st.session_state.itinerary_id)
+                if saved_id:
+                    st.session_state.itinerary_id = saved_id
+                    st.success("✅ Itinerary saved to database!")
+                else:
+                    st.warning("⚠️ Could not save to database, using session only")
+
+            if errors:
+                st.warning("\n".join(errors))
+
+            st.subheader("📅 Your Itinerary")
             st.markdown(itinerary)
+
+            with st.expander("📋 View JSON Data", expanded=False):
+                st.json(itinerary_json)
 
             st.subheader("🌦️ Weather Forecast")
             st.write(weather)
 
             st.session_state.itinerary_generated = True
             st.session_state.current_itinerary = itinerary
+            st.session_state.current_itinerary_json = itinerary_json
             st.session_state.preferences = preferences
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error(f"❌ An error occurred: {e}")
+            st.exception(e)
 
 if st.session_state.get("itinerary_generated"):
     st.divider()

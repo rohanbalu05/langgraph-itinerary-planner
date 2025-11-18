@@ -1,12 +1,17 @@
-# workflow.py
 from langgraph.graph import StateGraph, END
 from tavily import TavilyClient
-from typing import TypedDict
+from typing import TypedDict, Dict, Any
 from datetime import datetime
 import os
+import json
 from dotenv import load_dotenv
 
-from llm import llm  # our TinyLlama-based LLM function
+from llm import llm
+from tripcraft_config import (
+    build_itinerary_prompt,
+    validate_itinerary_json,
+    extract_json_from_text
+)  # our TinyLlama-based LLM function
 
 # Load environment variables
 load_dotenv()
@@ -14,12 +19,13 @@ load_dotenv()
 # Tavily API client
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
-# Define the state structure
 class TravelPlanState(TypedDict):
     preferences: dict
     destination_info: str
     itinerary: str
+    itinerary_json: dict
     weather: str
+    errors: list
 
 
 # Step 1: Gather preferences
@@ -61,9 +67,8 @@ def fetch_destination_info(state: TravelPlanState):
 
 
 
-# Step 3: Generate itinerary with LLM
 def generate_itinerary(state: TravelPlanState):
-    # Calculate trip days
+    """Generate itinerary using TripCraft JSON format"""
     dates = state['preferences'].get('dates', "")
     try:
         start_date, end_date = dates.split(" to ")
@@ -71,28 +76,161 @@ def generate_itinerary(state: TravelPlanState):
         end = datetime.strptime(end_date, "%Y-%m-%d")
         num_days = (end - start).days + 1
     except (ValueError, AttributeError):
-        num_days = 5  # fallback
+        num_days = 5
 
-    # Build prompt
-    prompt = (
-        f"You are a travel planner AI.\n"
-        f"Generate a detailed {num_days}-day travel itinerary for {state['preferences']['destination']}.\n"
-        f"Total budget: ${state['preferences']['budget']}.\n"
-        f"Traveler interests: {', '.join(state['preferences']['interests'])}.\n"
-        f"Reference information: {state['destination_info']}.\n"
-        f"Output format:\n"
-        f"- Day X: Morning activity (cost), Afternoon activity (cost), Evening activity (cost)\n"
-        f"- End each day with the total cost for that day.\n"
-        f"- Ensure the overall cost is within budget.\n"
-        f"Do not explain the format, only provide the itinerary."
+    prompt = build_itinerary_prompt(
+        preferences=state['preferences'],
+        destination_info=state['destination_info'],
+        num_days=num_days
     )
 
+    try:
+        raw_output = llm(prompt, return_json=True)
 
-    # Call local LLM
-    raw_output = llm(prompt)
+        try:
+            itinerary_data = json.loads(raw_output)
+        except json.JSONDecodeError:
+            itinerary_data = extract_json_from_text(raw_output)
 
-    # Extract itinerary text
-    return {"itinerary": raw_output.strip()}
+        if not validate_itinerary_json(itinerary_data):
+            fallback_itinerary = create_fallback_itinerary(
+                state['preferences'],
+                num_days,
+                raw_output
+            )
+            return {
+                "itinerary": format_itinerary_as_markdown(fallback_itinerary),
+                "itinerary_json": fallback_itinerary,
+                "errors": ["Generated itinerary did not match schema, using fallback"]
+            }
+
+        markdown_output = format_itinerary_as_markdown(itinerary_data)
+
+        return {
+            "itinerary": markdown_output,
+            "itinerary_json": itinerary_data,
+            "errors": []
+        }
+
+    except Exception as e:
+        fallback_itinerary = create_fallback_itinerary(
+            state['preferences'],
+            num_days,
+            str(e)
+        )
+        return {
+            "itinerary": format_itinerary_as_markdown(fallback_itinerary),
+            "itinerary_json": fallback_itinerary,
+            "errors": [f"Error generating itinerary: {str(e)}"]
+        }
+
+
+def create_fallback_itinerary(preferences: Dict[str, Any], num_days: int, error_info: str) -> Dict[str, Any]:
+    """Create a basic fallback itinerary when generation fails"""
+    destination = preferences.get('destination', 'Unknown Destination')
+    dates = preferences.get('dates', '')
+    budget = preferences.get('budget', 0)
+
+    try:
+        start_date = dates.split(' to ')[0]
+    except Exception:
+        start_date = datetime.now().strftime('%Y-%m-%d')
+
+    daily_plans = []
+    for day_num in range(1, num_days + 1):
+        day_date = datetime.strptime(start_date, '%Y-%m-%d')
+        day_date = day_date.replace(day=day_date.day + day_num - 1)
+
+        daily_plans.append({
+            "day": day_num,
+            "date": day_date.strftime('%Y-%m-%d'),
+            "summary": f"Day {day_num} in {destination}",
+            "activities": [
+                {
+                    "start_time": "09:00",
+                    "end_time": "12:00",
+                    "title": f"Morning exploration of {destination}",
+                    "type": "sightseeing",
+                    "address": destination,
+                    "notes": "Explore the main attractions"
+                },
+                {
+                    "start_time": "14:00",
+                    "end_time": "17:00",
+                    "title": "Afternoon activities",
+                    "type": "leisure",
+                    "address": destination,
+                    "notes": "Enjoy local culture"
+                }
+            ],
+            "meals": [
+                {"time": "12:30", "suggestion": "Local restaurant", "est_cost": 25},
+                {"time": "19:00", "suggestion": "Dinner venue", "est_cost": 40}
+            ],
+            "estimated_daily_cost": int(budget / num_days) if budget else 150
+        })
+
+    return {
+        "itinerary": {
+            "destination": destination,
+            "start_date": start_date,
+            "end_date": daily_plans[-1]['date'] if daily_plans else start_date,
+            "currency": "USD",
+            "daily_plans": daily_plans,
+            "total_estimated_cost": budget if budget else num_days * 150,
+            "assumptions": ["Basic itinerary generated due to: " + error_info],
+            "sources": [{"type": "fallback", "citation": "System generated"}]
+        },
+        "human_readable": f"Generated a basic {num_days}-day itinerary for {destination}. Please refine using the chat feature."
+    }
+
+
+def format_itinerary_as_markdown(itinerary_data: Dict[str, Any]) -> str:
+    """Convert JSON itinerary to markdown format for display"""
+    try:
+        itinerary = itinerary_data.get('itinerary', itinerary_data)
+        lines = []
+
+        lines.append(f"# {itinerary['destination']}")
+        lines.append(f"**{itinerary['start_date']} to {itinerary['end_date']}**")
+        lines.append(f"**Total Budget: {itinerary.get('currency', 'USD')} {itinerary['total_estimated_cost']}**\n")
+
+        for day_plan in itinerary['daily_plans']:
+            lines.append(f"## Day {day_plan['day']} - {day_plan['date']}")
+            if day_plan.get('summary'):
+                lines.append(f"*{day_plan['summary']}*\n")
+
+            for activity in day_plan.get('activities', []):
+                lines.append(f"### {activity['start_time']} - {activity['end_time']}: {activity['title']}")
+                if activity.get('address'):
+                    lines.append(f"📍 {activity['address']}")
+                if activity.get('notes'):
+                    lines.append(f"ℹ️ {activity['notes']}")
+                lines.append("")
+
+            if day_plan.get('meals'):
+                lines.append("**Meals:**")
+                for meal in day_plan['meals']:
+                    lines.append(f"- {meal['time']}: {meal['suggestion']} (${meal.get('est_cost', 0)})")
+                lines.append("")
+
+            lines.append(f"💰 **Daily Cost: ${day_plan.get('estimated_daily_cost', 0)}**\n")
+
+        if itinerary.get('safety_notes'):
+            lines.append("## Safety Notes")
+            for note in itinerary['safety_notes']:
+                lines.append(f"- {note}")
+            lines.append("")
+
+        if itinerary.get('packing_list'):
+            lines.append("## Packing List")
+            for item in itinerary['packing_list']:
+                lines.append(f"- {item}")
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"Error formatting itinerary: {str(e)}\n\nRaw data: {json.dumps(itinerary_data, indent=2)}"
 
 
 # Step 4: Fetch weather
